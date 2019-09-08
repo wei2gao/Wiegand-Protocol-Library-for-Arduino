@@ -96,12 +96,18 @@ unsigned long WIEGAND::GetCardId (volatile unsigned long *codehigh, volatile uns
 	if (bitlength==26)								// EM tag
 	return (*codelow & 0x1FFFFFE) >>1;
 
-	if (bitlength==34)								// Mifare 
+	if (bitlength==34||bitlength==35)								// Mifare 
 	{
 		*codehigh = *codehigh & 0x03;				// only need the 2 LSB of the codehigh
 		*codehigh <<= 30;							// shift 2 LSB to MSB		
 		*codelow >>=1;
 		return *codehigh | *codelow;
+	}
+	if (bitlength==35) {
+		
+		uint64_t temp = ( (uint64_t)(*codehigh & 0x03) << 32) | *codelow; // weird bit stuff
+		return (temp & 0x3FFFFB000) >> 14; // Isolate bits 15-34 of the code
+		// hell if I know whether it works ...
 	}
 	return *codelow;								// EM tag or Mifare without parity bits
 }
@@ -124,9 +130,10 @@ bool WIEGAND::DoWiegandConversion ()
 	unsigned long cardID;
 	unsigned long sysTick = millis();
 	
+	// now with 35 bit support
 	if ((sysTick - _lastWiegand) > 25)								// if no more signal coming through after 25ms
 	{
-		if ((_bitCount==24) || (_bitCount==26) || (_bitCount==32) || (_bitCount==34) || (_bitCount==8) || (_bitCount==4)) 	// bitCount for keypress=4 or 8, Wiegand 26=24 or 26, Wiegand 34=32 or 34
+		if ((_bitCount==24) || (_bitCount==26)  || (_bitCount==35) || (_bitCount==32) || (_bitCount==34) || (_bitCount==8) || (_bitCount==4)) 	// bitCount for keypress=4 or 8, Wiegand 26=24 or 26, Wiegand 34=32 or 34
 		{
 			_cardTemp >>= 1;			// shift right 1 bit to get back the real value - interrupt done 1 left shift in advance
 			if (_bitCount>32)			// bit count more than 32 bits, shift high bits right to make adjustment
@@ -170,7 +177,7 @@ bool WIEGAND::DoWiegandConversion ()
 
 				return true;
 			}
-			else		// wiegand 26 or wiegand 34
+			else		// wiegand 26 or wiegand 34 (or wiegand 35/Corporate 1000)
 			{
 				cardID = GetCardId (&_cardTempHigh, &_cardTemp, _bitCount);
 				_wiegandType=_bitCount;
@@ -183,7 +190,7 @@ bool WIEGAND::DoWiegandConversion ()
 		}
 		else
 		{
-			// well time over 25 ms and bitCount !=8 , !=26, !=34 , must be noise or nothing then.
+			// well time over 25 ms and bitCount !=8 , !=26, !=34 (also not 35), must be noise or nothing then.
 			_lastWiegand=sysTick;
 			_bitCount=0;			
 			_cardTemp=0;
