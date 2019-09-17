@@ -104,13 +104,10 @@ unsigned long WIEGAND::GetCardId (volatile unsigned long *codehigh, volatile uns
 		return *codehigh | *codelow;
 	}
 	if (bitlength==35) {
-		
-		uint64_t temp = ( (uint64_t)(*codehigh & 0x03) << 32) | *codelow; // weird bit stuff
-		uint64_t code = (temp & 0x3FFFFB000) >> 14;
-		//Serial.println((unsigned)code);
-		// Seems like I got the bit math wrong, since I get the wrong code for my card
-		return code; // Isolate bits 15-34 of the code: (0)011 1111 1111 1111 1111 1100 0000 0000 0000
-		// hell if I know whether it works ...
+		// seems like the MSB of *codehigh is actually bit 1!
+	 	uint64_t temp = (((uint64_t)(*codehigh))<<32) | *codelow;
+		return (temp & 0x1ffffe)>>1;
+
 	}
 	return *codelow;								// EM tag or Mifare without parity bits
 }
